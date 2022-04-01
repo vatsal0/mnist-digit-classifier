@@ -1,0 +1,3 @@
+[submodule "src/libbmp"]
+	path = src/libbmp
+	url = https://github.com/marc-q/libbmp.git
