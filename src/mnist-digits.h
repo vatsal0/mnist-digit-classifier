@@ -1,3 +1,6 @@
+#ifndef MNIST_DIGITS_H
+#define MNIST_DIGITS H
+
 typedef struct {
   unsigned int num_rows;
   unsigned int num_cols;
@@ -17,3 +20,4 @@ void read_set(Image_Array *array, const char *images_filename, const char *label
 
 void render_image(Image *image, const char *filename);
 
+#endif
