@@ -8,9 +8,10 @@
 int main(void) {
   Image_Array *array = malloc(sizeof(Image_Array));
   Image *image;
-  size_t layer_sizes[] = {100};
+  size_t layer_sizes[] = {300};
   double *input;
-  int i;
+  int i, n;
+  double avg_cost;
 
   Neural_Network *network = malloc(sizeof(Neural_Network));
 
@@ -22,8 +23,15 @@ int main(void) {
   initialize_network(network, input_size, 10, layer_sizes, sizeof(layer_sizes)/sizeof(*layer_sizes));
 
   input = malloc(sizeof(*input) * input_size);
-  for (i = 0; i < input_size; i++)
-    input[i] = image->pixels[i] / 255.0;
   
-  feed_forward(network, input);
+  for (n = 0; n < array->num_images; n++) {
+    if (n % 1000 == 0) {
+      printf("Example %d: average cost %.02f\n", n, avg_cost / 1000);
+      avg_cost = 0;
+    }
+    image = array->images[n];
+    for (i = 0; i < input_size; i++)
+        input[i] = image->pixels[i] / 255.0;
+    avg_cost += backpropagate(network, input, image->label);
+  }
 }

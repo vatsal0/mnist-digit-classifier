@@ -38,8 +38,6 @@ void read_set(Image_Array *array, const char *images_filename, const char *label
   fread(&num_cols, 4, 1, images_file);
   num_cols = ntohl(num_cols);
 
-  fseek(labels_file, ftell(images_file), SEEK_SET);
-
   printf("Loading %d images (%dx%d)...\n", num_images, num_rows, num_cols);
 
   array->num_images = num_images;
