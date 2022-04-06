@@ -1,5 +1,5 @@
 #ifndef MNIST_DIGITS_H
-#define MNIST_DIGITS H
+#define MNIST_DIGITS_H
 
 typedef struct {
   unsigned int num_rows;
