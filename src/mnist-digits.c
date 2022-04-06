@@ -109,6 +109,3 @@ void render_image(Image *image, const char *filename) {
   bmp_img_write(&img, filename);
 	bmp_img_free(&img);
 }
-
-
-/* cd src; gcc -g mnist-digits.c driver.c libbmp/libbmp.c -o mnist-digits.out; cd .. */
