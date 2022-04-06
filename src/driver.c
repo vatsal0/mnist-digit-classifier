@@ -8,7 +8,7 @@
 int main(void) {
   Image_Array *array = malloc(sizeof(Image_Array));
   Image *image;
-  size_t layer_sizes[] = {100};
+  size_t layer_sizes[] = {300};
   double *input;
   int i, n;
   double avg_cost;
@@ -24,5 +24,6 @@ int main(void) {
 
   input = malloc(sizeof(*input) * input_size);
   
-  train(network, array, 600);
+  for (i = 0; i < 10; i++)
+    train(network, array, 500);
 }

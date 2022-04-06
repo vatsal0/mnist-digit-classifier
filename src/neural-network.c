@@ -169,6 +169,8 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
   int i_batch, i_example, i_layer, i_value;
   Layer *cur_layer, *next_layer;
   gsl_matrix_view cur_layer_matrix, next_layer_matrix;
+  gsl_matrix **gradients = calloc(network->num_layers - 1, sizeof(gsl_matrix *));
+  double **deltas = calloc(network->num_layers, sizeof(double *));
   double **layer_values = calloc(network->num_layers, sizeof(double *));
   double **layer_activations = calloc(network->num_layers, sizeof(double *));
 
@@ -181,10 +183,11 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
   }
 
   for (i_batch = 0; i_batch < array->num_images; i_batch += batch_size) {
-    /* Load input values into first layer */
+    double cost;
     size_t input_size = network->layers[0]->num_nodes;
+    size_t output_size = network->layers[network->num_layers - 1]->num_nodes;
 
-    /* Copy input_size values at a time, once for each example */
+    /* Load input values into first layer */
     for (i_example = 0; i_example < batch_size; i_example++) {
       for (i_value = 0; i_value < input_size; i_value++)
         layer_values[0][i_example * input_size + i_value] = (double) array->images[i_batch + i_example]->pixels[i_value];
@@ -228,7 +231,68 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
     }
 
     /* Calculate cost function for the output */
+    cost = 0;
+
+    for (i_example = 0; i_example < batch_size; i_example++) {
+      unsigned char label = array->images[i_batch + i_example]->label;
+
+      for (i_value = 0; i_value < output_size; i_value++) {
+        double prediction = layer_activations[network->num_layers - 1][i_example * output_size + i_value];
+        if (i_value == label)
+          cost += -log(prediction);
+        else
+          cost += -log(1 - prediction);
+      }
+    }
+
+    cost /= batch_size;
+    printf("Cost for batch %lu: %.02f\n", i_batch / batch_size + 1, cost);
+
+    /* Initialize gradient matrices and delta vectors */
+    for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
+      gradients[i_layer] = gsl_matrix_alloc(network->weights[i_layer]->size1, network->weights[i_layer]->size2);
+      deltas[i_layer + 1] = calloc(network->weights[i_layer]->size1, sizeof(**deltas));
+    }
+
 
     /* Adjust weights through backpropagation */
+    for (i_example = 0; i_example < batch_size; i_example++) {
+      /* Calculate output delta */
+      unsigned char label = array->images[i_batch + i_example]->label;
+      for (i_value = 0; i_value < output_size; i_value++) {
+        double prediction = layer_activations[network->num_layers - 1][i_example * output_size + i_value];
+        deltas[network->num_layers - 1][i_value] = prediction - (i_value == label);
+      }
+
+      /* Calculate deltas for previous layers */
+      for (i_layer = network->num_layers - 2; i_layer > 0; i_layer--) {
+        int num_nodes = network->layers[i_layer]->num_nodes;
+        gsl_matrix_view next_delta_matrix = gsl_matrix_view_array(deltas[i_layer + 1], network->layers[i_layer + 1]->num_nodes, 1);
+        gsl_matrix *cur_delta_matrix = gsl_matrix_alloc(num_nodes + 1, 1);
+
+        gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1, network->weights[i_layer], &next_delta_matrix.matrix, 0, cur_delta_matrix);
+
+        for (i_value = 0; i_value < num_nodes; i_value++)
+          deltas[i_layer][i_value] = gsl_matrix_get(cur_delta_matrix, i_value + 1, 0) * sigmoid_gradient(layer_values[i_layer][i_example * num_nodes + i_value]);
+
+        gsl_matrix_free(cur_delta_matrix);
+      }
+
+      for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
+        int num_nodes = network->layers[i_layer]->num_nodes;
+        gsl_matrix *cur_activations = gsl_matrix_alloc(num_nodes + 1, 1);
+        gsl_matrix_view next_delta_matrix = gsl_matrix_view_array(deltas[i_layer + 1], network->layers[i_layer + 1]->num_nodes, 1);
+
+        gsl_matrix_set(cur_activations, 0, 0, 1);
+        for (i_value = 0; i_value < num_nodes; i_value++)
+          gsl_matrix_set(cur_activations, i_value + 1, 0, layer_activations[i_layer][i_example * num_nodes + i_value]);
+
+        gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1, &next_delta_matrix.matrix, cur_activations, 0, gradients[i_layer]);
+        gsl_matrix_scale(gradients[i_layer], 1.0/batch_size);
+        gsl_matrix_sub(network->weights[i_layer], gradients[i_layer]);
+
+        gsl_matrix_free(cur_activations);
+      }
+    }
   }
 }
