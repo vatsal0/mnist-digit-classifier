@@ -166,8 +166,6 @@ double backpropagate(Neural_Network *network, double *input_values, unsigned int
 }
 
 void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
-  /* assert(array->num_images % batch_size == 0); */
-
   int i_batch, i_example, i_layer, i_value;
   Layer *cur_layer, *next_layer;
   gsl_matrix_view cur_layer_matrix, next_layer_matrix;
@@ -184,10 +182,7 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
 
   for (i_batch = 0; i_batch < array->num_images; i_batch += batch_size) {
     /* Load input values into first layer */
-    cur_layer = network->layers[0];
-    size_t input_size = cur_layer->num_nodes;
-
-    int nodes;
+    size_t input_size = network->layers[0]->num_nodes;
 
     /* Copy input_size values at a time, once for each example */
     for (i_example = 0; i_example < batch_size; i_example++) {
@@ -199,36 +194,19 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
     for (i_value = 0; i_value < input_size * batch_size; i_value++)
       layer_activations[0][i_value] = layer_values[0][i_value] / 255.0;
 
-    /* Matrix is converted in row major order, and each training example is contiguous in memory so a row represents an example */
-    /* These matrices have to be transposed for multiplication, because examples must be column vectors to match the weight matrices' dimensions */
-    cur_layer_matrix = gsl_matrix_view_array(layer_activations[0], batch_size, input_size);
 
+    /* Calculate output through forward propagation */
     for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
+      gsl_matrix *layer_with_bias;
+
       cur_layer = network->layers[i_layer];
       next_layer = network->layers[i_layer + 1];
+
+      /* Matrix is converted in row major order, and each training example is contiguous in memory so a row represents an example */
+      /* These matrices have to be transposed for multiplication, because examples must be column vectors to match the weight matrices' dimensions */
       cur_layer_matrix = gsl_matrix_view_array(layer_activations[i_layer], batch_size, cur_layer->num_nodes);
-      gsl_matrix *layer_with_bias = gsl_matrix_alloc(cur_layer->num_nodes + 1, batch_size);
-      gsl_matrix_set_all(layer_with_bias, 0);
-
-      if (i_batch == 0) {
-        i_example = 435;
-        printf("Example 435, layer %d:", i_layer);
-        for (i_value = 0; i_value < cur_layer->num_nodes; i_value++) {
-          if (i_value % 28 == 0) printf("\n");
-          printf(" %4.02f", gsl_matrix_get(&cur_layer_matrix.matrix, i_example, i_value));
-        }
-        printf("\n");
-      }
-
-      #ifdef DEBUG_MATRIX
-      printf("\nCurrent layer matrix size: %dx%d; bounds: %dx%d\n",
-        cur_layer_matrix.matrix.size1, cur_layer_matrix.matrix.size2,
-        batch_size, cur_layer->num_nodes);
-
-      printf("Current layer w/ bias matrix size: %dx%d; bounds: %dx%d\n",
-        layer_with_bias->size1, layer_with_bias->size2,
-        cur_layer->num_nodes + 1, batch_size);
-      #endif
+      next_layer_matrix = gsl_matrix_view_array(layer_values[i_layer + 1], batch_size, next_layer->num_nodes);
+      layer_with_bias = gsl_matrix_alloc(cur_layer->num_nodes + 1, batch_size);
 
       for(i_example = 0; i_example < batch_size; i_example++) {
         /* Add a bias value to the current example. */
@@ -239,18 +217,7 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
           gsl_matrix_set(layer_with_bias, i_value + 1, i_example, gsl_matrix_get(&cur_layer_matrix.matrix, i_example, i_value));
       }
 
-      /* This matrix must be the transpose of the result to satisfy the row major order, same as above. */
-      next_layer_matrix = gsl_matrix_view_array(layer_values[i_layer + 1], batch_size, next_layer->num_nodes);
-
-      /* Use the corresponding weight matrix and the current layer's activations to calculate the values for the next layer. */
-      /* Use transpose(AB) = transpose(B) * transpose(A) to correctly obtain the next layer result. */
-
-      #ifdef DEBUG_MATRIX
-      printf("Layer matrix dimensions: %dx%d; Weight matrix dimensions: %dx%d\n",
-        layer_with_bias->size1, layer_with_bias->size2,
-        network->weights[i_layer]->size1, network->weights[i_layer]->size2);
-      #endif
-
+      /* Calculate the values for the next layer using the weight matrix. */
       gsl_blas_dgemm(CblasTrans, CblasTrans, 1, layer_with_bias, network->weights[i_layer], 0, &next_layer_matrix.matrix);
 
       /* Apply the activation function on every entry of the next layer to set it up for the next iteration. */
@@ -260,11 +227,8 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
       gsl_matrix_free(layer_with_bias);
     }
 
-    printf("Sample output from batch %lu:", i_batch / batch_size);
-    nodes = network->layers[network->num_layers - 1]->num_nodes;
-    for (i_value = 0; i_value < nodes; i_value++) {
-      printf(" %.03f", layer_activations[network->num_layers - 1][i_value]);
-    } 
-    printf("\n");
+    /* Calculate cost function for the output */
+
+    /* Adjust weights through backpropagation */
   }
 }
