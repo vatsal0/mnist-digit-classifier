@@ -19,8 +19,10 @@ typedef struct {
 
 void initialize_network(Neural_Network *network, size_t input_size, size_t output_size, size_t *hidden_layer_sizes, size_t num_hidden_layers);
 
-double backpropagate(Neural_Network *network, double *input_values, unsigned int expected_output);
-
 void train(Neural_Network *network, Image_Array *images, size_t batch_size);
+
+void load_weights(Neural_Network *network, char *filename);
+
+void save_weights(Neural_Network *network, char *filename);
 
 #endif

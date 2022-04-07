@@ -6,6 +6,10 @@
 
 #include "neural-network.h"
 
+#ifndef LAMBDA
+#define LAMBDA 1
+#endif
+
 double sigmoid(double z) {
   return 1/(1 + exp(-z));
 }
@@ -57,112 +61,6 @@ void initialize_network(Neural_Network *network, size_t input_size, size_t outpu
       }
     }
   }
-}
-
-double backpropagate(Neural_Network *network, double *input_values, unsigned int expected_output) {
-  int i, l;
-  double cost = 0;
-  double lambda = 0.1 / (network->num_layers - 1);
-  Layer *cur_layer = network->layers[0];
-  gsl_matrix *cur_vector = gsl_matrix_alloc(cur_layer->num_nodes + 1, 1);
-  gsl_matrix *expected_vector;
-  gsl_matrix **deltas = malloc(sizeof(gsl_matrix *) * network->num_layers);
-
-  /* Initialize input vector including a bias value */
-  gsl_matrix_set(cur_vector, 0, 0, 1);
-  for (i = 0; i < cur_layer->num_nodes; i++) 
-    gsl_matrix_set(cur_vector, i + 1, 0, input_values[i]);
-    cur_layer->node_values[i] = input_values[i];
-
-  for (l = 1; l < network->num_layers; l++) {
-    gsl_matrix *weight_matrix = network->weights[l - 1];
-    gsl_matrix *next_vector;
-    
-    cur_layer = network->layers[l];
-    next_vector = gsl_matrix_alloc(cur_layer->num_nodes, 1);
-
-    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1, weight_matrix, cur_vector, 0, next_vector);
-    gsl_matrix_free(cur_vector);
-
-    /* Apply activation function */
-    for (i = 0; i < next_vector->size1; i++) {
-      double activated_value = cur_layer->activation(gsl_matrix_get(next_vector, i, 0));
-      cur_layer->node_values[i] = gsl_matrix_get(next_vector, i, 0);
-      gsl_matrix_set(next_vector, i, 0, activated_value);
-    }
-
-    /* Include a bias value if the current layer is not an output layer */
-    if (l != network->num_layers - 1) {
-      gsl_matrix *next_vector_with_bias = gsl_matrix_alloc(cur_layer->num_nodes + 1, 1);
-      gsl_matrix_set(next_vector_with_bias, 0, 0, 1);
-      for (i = 1; i < cur_layer->num_nodes + 1; i++) 
-        gsl_matrix_set(next_vector_with_bias, i, 0, gsl_matrix_get(next_vector, i - 1, 0));
- 
-      gsl_matrix_free(next_vector);
-      cur_vector = next_vector_with_bias;
-    } else {
-      cur_vector = next_vector;
-    }
-  }
-
-  deltas[network->num_layers - 1] = gsl_matrix_alloc(cur_vector->size1, 1);
-
-  for (i = 0; i < cur_vector->size1; i++) {
-    double h = gsl_matrix_get(cur_vector, i, 0);
-    int y = i == expected_output;
-
-    cost += -y * log(h) - (1 - y) * log(1 - h);
-    gsl_matrix_set(deltas[network->num_layers - 1], i, 0, h - y);
-  }
-
-  for (l = 1; l < network->num_layers; l++) {
-    int r, c;
-    gsl_matrix *weight_matrix = network->weights[l - 1];
-    for (r = 0; r < weight_matrix->size1; r++) {
-      for (c = 0; c < weight_matrix->size2; c++) {
-        cost += lambda * gsl_matrix_get(weight_matrix, r, c) * gsl_matrix_get(weight_matrix, r, c);
-      }
-    }
-  }
-
-  for (l = network->num_layers - 1; l > 1; l--) {
-    Layer *back_layer = network->layers[l - 1];
-    gsl_matrix *weight_matrix = network->weights[l - 1];
-    gsl_matrix *activated_delta = gsl_matrix_alloc(back_layer->num_nodes, 1);
-    deltas[l - 1] = gsl_matrix_alloc(back_layer->num_nodes + 1, 1);
-
-    gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1, weight_matrix, deltas[l], 0, deltas[l - 1]);
-    for (i = 0; i < back_layer->num_nodes; i++) {
-      gsl_matrix_set(activated_delta, i, 0, gsl_matrix_get(deltas[l - 1], i + 1, 0) * back_layer->activation_gradient(back_layer->node_values[i]));
-    }
-    gsl_matrix_free(deltas[l - 1]);
-    deltas[l - 1] = activated_delta;
-  }
-
-  for (l = 0; l < network->num_layers - 1; l++) {
-    gsl_matrix *weight_matrix = network->weights[l];
-    gsl_matrix *grad_matrix = gsl_matrix_alloc(weight_matrix->size1, weight_matrix->size2);
-    cur_layer = network->layers[l];
-    int r, c;
-
-    for (r = 0; r < weight_matrix->size1; r++) {
-      gsl_matrix_set(grad_matrix, r, 0, 0);
-      for (c = 1; c < weight_matrix->size2; c++) {
-        gsl_matrix_set(grad_matrix, r, c, gsl_matrix_get(deltas[l + 1], r, 0) * cur_layer->activation(cur_layer->node_values[c]));
-      }
-    }
-
-    gsl_matrix_sub(weight_matrix, grad_matrix);
-    gsl_matrix_free(grad_matrix);
-  }
-
-  for (l = 1; l < network->num_layers; l++)
-    gsl_matrix_free(deltas[l]);
-  free(deltas);
-
-  gsl_matrix_free(cur_vector);
-
-  return cost;
 }
 
 void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
@@ -245,6 +143,20 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
       }
     }
 
+    /* Add regularization to the cost function by adding square sum of weight values */
+    for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++){
+      int r,c;
+      gsl_matrix *cur_weights = network->weights[i_layer];
+
+      for (r = 0; r < cur_weights->size1; r++) {
+        /* Bias weight (column 0) is ignored in regularization */
+        for (c = 1; c < cur_weights->size2; c++) {
+          double weight = gsl_matrix_get(cur_weights, r, c);
+          cost += weight * weight * LAMBDA / 2.0;
+        }
+      }
+    }
+
     cost /= batch_size;
     printf("Cost for batch %lu: %.02f\n", i_batch / batch_size + 1, cost);
 
@@ -280,6 +192,8 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
 
       for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
         int num_nodes = network->layers[i_layer]->num_nodes;
+        int r,c;
+        gsl_matrix *cur_weights = network->weights[i_layer];
         gsl_matrix *cur_activations = gsl_matrix_alloc(num_nodes + 1, 1);
         gsl_matrix_view next_delta_matrix = gsl_matrix_view_array(deltas[i_layer + 1], network->layers[i_layer + 1]->num_nodes, 1);
 
@@ -287,9 +201,18 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
         for (i_value = 0; i_value < num_nodes; i_value++)
           gsl_matrix_set(cur_activations, i_value + 1, 0, layer_activations[i_layer][i_example * num_nodes + i_value]);
 
+        /* Calculate the gradient for the current example with the delta and transpose of actiations */
         gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1, &next_delta_matrix.matrix, cur_activations, 0, gradients[i_layer]);
+
+        /* Regularize the gradient by adding current weight values (ignoring bias again) */
+        for (r = 0; r < cur_weights->size1; r++) {
+          for (c = 1; c < cur_weights->size2; c++)
+            gsl_matrix_set(gradients[i_layer], r, c, gsl_matrix_get(gradients[i_layer], r, c) + gsl_matrix_get(cur_weights, r, c) * LAMBDA);
+        }
+
+        /* Scale the matrix for the single example */
         gsl_matrix_scale(gradients[i_layer], 1.0/batch_size);
-        gsl_matrix_sub(network->weights[i_layer], gradients[i_layer]);
+        gsl_matrix_sub(cur_weights, gradients[i_layer]);
 
         gsl_matrix_free(cur_activations);
       }

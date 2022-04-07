@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -I/usr/local/include
+CFLAGS = -g -I/usr/local/include -O2
 LDFLAGS = -L/usr/local/lib/ -lgsl -lcblas -lm
 
 SRC_DIR = ./src
