@@ -6,10 +6,6 @@
 
 #include "neural-network.h"
 
-#ifndef LAMBDA
-#define LAMBDA 1
-#endif
-
 double sigmoid(double z) {
   return 1/(1 + exp(-z));
 }
@@ -146,6 +142,7 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
       }
     }
 
+    #ifdef LAMBDA
     /* Add regularization to the cost function by adding square sum of weight values */
     for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++){
       int r,c;
@@ -159,6 +156,7 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
         }
       }
     }
+    #endif
 
     cost /= batch_size;
     printf("Cost for batch %lu: %.02f\n", i_batch / batch_size + 1, cost);
@@ -200,11 +198,13 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
         /* Calculate the gradient for the current example with the delta and transpose of actiations */
         gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1, &next_delta_matrix.matrix, cur_activations, 0, gradients[i_layer]);
 
+        #ifdef LAMBDA
         /* Regularize the gradient by adding current weight values (ignoring bias again) */
         for (r = 0; r < cur_weights->size1; r++) {
           for (c = 1; c < cur_weights->size2; c++)
             gsl_matrix_set(gradients[i_layer], r, c, gsl_matrix_get(gradients[i_layer], r, c) + gsl_matrix_get(cur_weights, r, c) * LAMBDA);
         }
+        #endif
 
         /* Scale the matrix for the single example */
         gsl_matrix_scale(gradients[i_layer], 1.0/batch_size);
@@ -237,6 +237,8 @@ void predict(Neural_Network *network, Image *image) {
   gsl_matrix_view cur_layer_matrix, next_layer_matrix;
   double **layer_values = calloc(network->num_layers, sizeof(double *));
   double **layer_activations = calloc(network->num_layers, sizeof(double *));
+  double max_prob = 0;
+  unsigned int max_label;
 
   /* Initialize gradient matrices and delta vectors and layer values */ 
   for (i_layer = 0; i_layer < network->num_layers; i_layer++) {
@@ -281,10 +283,14 @@ void predict(Neural_Network *network, Image *image) {
     gsl_matrix_free(layer_with_bias);
   }
 
-  printf("%d", image->label);
-  for (i_value = 0; i_value < output_size; i_value++)
-    printf(" %.02f", layer_activations[network->num_layers - 1][i_value]);
-  printf("\n");
+  for (i_value = 0; i_value < output_size; i_value++) {
+    double prob = layer_activations[network->num_layers - 1][i_value];
+    if (prob > max_prob) {
+      max_prob = prob;
+      max_label = i_value;
+    }
+  }
+  printf("Prediction for image: %u (%.05f confidence)\n", max_label, max_prob);
 }
 
 void load_weights(Neural_Network *network, char *filename) {
