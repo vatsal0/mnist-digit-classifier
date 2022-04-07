@@ -9,9 +9,7 @@ int main(void) {
   Image_Array *array = malloc(sizeof(Image_Array));
   Image *image;
   size_t layer_sizes[] = {300, 300};
-  double *input;
-  int i, n;
-  double avg_cost;
+  int i;
 
   Neural_Network *network = malloc(sizeof(Neural_Network));
 
@@ -22,12 +20,12 @@ int main(void) {
   int input_size = image->num_rows * image->num_cols;
   initialize_network(network, input_size, 10, layer_sizes, sizeof(layer_sizes)/sizeof(*layer_sizes));
 
-  input = malloc(sizeof(*input) * input_size);
-  
   load_weights(network, "nn_300_300.weights");
 
-  for (i = 0; i < 2; i++)
+  predict(network, image);
+
+  for (i = 0; i < 10; i++) {
     train(network, array, 500);
-  
-  save_weights(network, "nn_300_300.weights");
+    save_weights(network, "nn_300_300.weights");
+  }
 }

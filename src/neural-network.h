@@ -20,6 +20,8 @@ void initialize_network(Neural_Network *network, size_t input_size, size_t outpu
 
 void train(Neural_Network *network, Image_Array *images, size_t batch_size);
 
+void predict(Neural_Network *network, Image *image);
+
 void load_weights(Neural_Network *network, char *filename);
 
 void save_weights(Neural_Network *network, char *filename);

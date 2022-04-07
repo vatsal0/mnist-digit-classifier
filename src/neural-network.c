@@ -71,18 +71,16 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
   double **layer_values = calloc(network->num_layers, sizeof(double *));
   double **layer_activations = calloc(network->num_layers, sizeof(double *));
 
-  /* Initialize layer value matrices */ 
+  /* Initialize gradient matrices and delta vectors and layer values */ 
   for (i_layer = 0; i_layer < network->num_layers; i_layer++) {
     cur_layer = network->layers[i_layer];
 
+    if (i_layer != 0)
+      deltas[i_layer] = calloc(network->weights[i_layer - 1]->size1, sizeof(**deltas));
+    if (i_layer != network->num_layers - 1)
+      gradients[i_layer] = gsl_matrix_alloc(network->weights[i_layer]->size1, network->weights[i_layer]->size2);
     layer_values[i_layer] = calloc(cur_layer->num_nodes * batch_size, sizeof(**layer_values));
     layer_activations[i_layer] = calloc(cur_layer->num_nodes * batch_size, sizeof(**layer_values));
-  }
-
-  /* Initialize gradient matrices and delta vectors */
-  for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
-    gradients[i_layer] = gsl_matrix_alloc(network->weights[i_layer]->size1, network->weights[i_layer]->size2);
-    deltas[i_layer + 1] = calloc(network->weights[i_layer]->size1, sizeof(**deltas));
   }
 
   for (i_batch = 0; i_batch < array->num_images; i_batch += batch_size) {
@@ -231,7 +229,62 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
   free(gradients);
   free(layer_values);
   free(layer_activations);
+}
 
+void predict(Neural_Network *network, Image *image) {
+  int i_layer, i_value;
+  Layer *cur_layer, *next_layer;
+  gsl_matrix_view cur_layer_matrix, next_layer_matrix;
+  double **layer_values = calloc(network->num_layers, sizeof(double *));
+  double **layer_activations = calloc(network->num_layers, sizeof(double *));
+
+  /* Initialize gradient matrices and delta vectors and layer values */ 
+  for (i_layer = 0; i_layer < network->num_layers; i_layer++) {
+    cur_layer = network->layers[i_layer];
+    layer_values[i_layer] = calloc(cur_layer->num_nodes, sizeof(**layer_values));
+    layer_activations[i_layer] = calloc(cur_layer->num_nodes, sizeof(**layer_values));
+  }
+
+  size_t input_size = network->layers[0]->num_nodes;
+  size_t output_size = network->layers[network->num_layers - 1]->num_nodes;
+
+  /* Load input values into first layer */
+  for (i_value = 0; i_value < input_size; i_value++) {
+    layer_values[0][i_value] = (double) image->pixels[i_value];
+    layer_activations[0][i_value] = layer_values[0][i_value] / 255.0;
+  }
+
+  /* Calculate output through forward propagation */
+  for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
+    gsl_matrix *layer_with_bias;
+
+    cur_layer = network->layers[i_layer];
+    next_layer = network->layers[i_layer + 1];
+
+    /* No need to transpose the matrices like in the train function because there is only one column */
+    cur_layer_matrix = gsl_matrix_view_array(layer_activations[i_layer], cur_layer->num_nodes, 1);
+    next_layer_matrix = gsl_matrix_view_array(layer_values[i_layer + 1], next_layer->num_nodes, 1);
+    layer_with_bias = gsl_matrix_alloc(cur_layer->num_nodes + 1, 1);
+
+    /* Add a bias value to the current example. */
+    gsl_matrix_set(layer_with_bias, 0, 0, 1);
+    for (i_value = 0; i_value < cur_layer->num_nodes; i_value++)
+      gsl_matrix_set(layer_with_bias, i_value + 1, 0, layer_activations[i_layer][i_value]);
+
+    /* Calculate the values for the next layer using the weight matrix. */
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1, network->weights[i_layer], layer_with_bias, 0, &next_layer_matrix.matrix);
+
+    /* Apply the activation function on every entry of the next layer to set it up for the next iteration. */
+    for (i_value = 0; i_value < next_layer->num_nodes; i_value++)
+        layer_activations[i_layer + 1][i_value] = next_layer->activation(layer_values[i_layer + 1][i_value]);
+
+    gsl_matrix_free(layer_with_bias);
+  }
+
+  printf("%d", image->label);
+  for (i_value = 0; i_value < output_size; i_value++)
+    printf(" %.02f", layer_activations[network->num_layers - 1][i_value]);
+  printf("\n");
 }
 
 void load_weights(Neural_Network *network, char *filename) {
