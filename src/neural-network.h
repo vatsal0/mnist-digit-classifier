@@ -6,7 +6,6 @@
 
 typedef struct {
   size_t num_nodes;
-  double *node_values;
   double (*activation)(double);
   double (*activation_gradient)(double);
 } Layer;

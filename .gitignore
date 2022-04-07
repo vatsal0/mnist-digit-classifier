@@ -1,6 +1,8 @@
 /data/*
 !/data/.gitkeep
 /out
+.vscode/
+*.weights
 
 # Prerequisites
 *.d

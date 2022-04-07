@@ -23,7 +23,6 @@ Layer *init_layer(unsigned int num_nodes) {
 
   Layer *layer = malloc(sizeof(Layer));
   layer->num_nodes = num_nodes;
-  layer->node_values = malloc(sizeof(*layer->node_values) * num_nodes);
   layer->activation = &sigmoid;
   layer->activation_gradient = &sigmoid_gradient;
 
@@ -78,6 +77,12 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
 
     layer_values[i_layer] = calloc(cur_layer->num_nodes * batch_size, sizeof(**layer_values));
     layer_activations[i_layer] = calloc(cur_layer->num_nodes * batch_size, sizeof(**layer_values));
+  }
+
+  /* Initialize gradient matrices and delta vectors */
+  for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
+    gradients[i_layer] = gsl_matrix_alloc(network->weights[i_layer]->size1, network->weights[i_layer]->size2);
+    deltas[i_layer + 1] = calloc(network->weights[i_layer]->size1, sizeof(**deltas));
   }
 
   for (i_batch = 0; i_batch < array->num_images; i_batch += batch_size) {
@@ -160,13 +165,6 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
     cost /= batch_size;
     printf("Cost for batch %lu: %.02f\n", i_batch / batch_size + 1, cost);
 
-    /* Initialize gradient matrices and delta vectors */
-    for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
-      gradients[i_layer] = gsl_matrix_alloc(network->weights[i_layer]->size1, network->weights[i_layer]->size2);
-      deltas[i_layer + 1] = calloc(network->weights[i_layer]->size1, sizeof(**deltas));
-    }
-
-
     /* Adjust weights through backpropagation */
     for (i_example = 0; i_example < batch_size; i_example++) {
       /* Calculate output delta */
@@ -218,4 +216,71 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
       }
     }
   }
+
+  /* Free gradient matrices and delta vectors and layer values*/
+  for (i_layer = 0; i_layer < network->num_layers; i_layer++) {
+    if (i_layer != 0)
+      free(deltas[i_layer]);
+    if (i_layer != network->num_layers - 1)
+      gsl_matrix_free(gradients[i_layer]);
+    free(layer_values[i_layer]);
+    free(layer_activations[i_layer]); 
+  }
+
+  free(deltas);
+  free(gradients);
+  free(layer_values);
+  free(layer_activations);
+
+}
+
+void load_weights(Neural_Network *network, char *filename) {
+  FILE *f = fopen(filename, "rb");
+  int i_layer, i_buf, r, c;
+  int buf_count = 0;
+  double *buf;
+  i_buf = 0;
+  
+  for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++)
+    buf_count += network->weights[i_layer]->size1 * network->weights[i_layer]->size2;
+    
+  buf = calloc(buf_count, sizeof(*buf));
+
+  fread(buf, sizeof(*buf), buf_count, f);
+
+  for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
+    gsl_matrix *weights = network->weights[i_layer];
+    for (r = 0; r < weights->size1; r++) {
+      for (c = 0; c < weights->size2; c++)
+        gsl_matrix_set(weights, r, c, buf[i_buf++]);
+    }
+  }
+
+  fclose(f);
+  free(buf);
+}
+
+void save_weights(Neural_Network *network, char *filename) {
+  FILE *f = fopen(filename, "wb");
+  int i_layer, i_buf, r, c;
+  int buf_count = 0;
+  double *buf;
+  i_buf = 0;
+
+  for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++)
+    buf_count += network->weights[i_layer]->size1 * network->weights[i_layer]->size2;
+    
+  buf = calloc(buf_count, sizeof(*buf));
+
+  for (i_layer = 0; i_layer < network->num_layers - 1; i_layer++) {
+    gsl_matrix *weights = network->weights[i_layer];
+    for (r = 0; r < weights->size1; r++) {
+      for (c = 0; c < weights->size2; c++)
+        buf[i_buf++] = gsl_matrix_get(weights, r, c);
+    }
+  }
+  
+  fwrite(buf, sizeof(*buf), buf_count, f);
+  fclose(f);
+  free(buf);
 }
