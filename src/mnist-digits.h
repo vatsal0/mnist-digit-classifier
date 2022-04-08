@@ -20,4 +20,6 @@ void read_set(Image_Array *array, const char *images_filename, const char *label
 
 void render_image(Image *image, const char *filename);
 
+void free_set(Image_Array *array);
+
 #endif

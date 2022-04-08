@@ -31,4 +31,6 @@ int main(void) {
     train(network, array, 1500);
     save_weights(network, "nn_300.weights");
   }
+
+  free(array);
 }

@@ -109,3 +109,16 @@ void render_image(Image *image, const char *filename) {
   bmp_img_write(&img, filename);
 	bmp_img_free(&img);
 }
+
+void free_set(Image_Array *array) {
+  int i;
+
+  for (i = 0; i < array->num_images; i++) {
+    Image *image = array->images[i];
+    free(image->pixels);
+    free(image);
+  }
+
+  free(array->images);
+  free(array);
+}
