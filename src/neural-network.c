@@ -231,14 +231,14 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
   free(layer_activations);
 }
 
-void predict(Neural_Network *network, Image *image) {
+unsigned char predict(Neural_Network *network, Image *image) {
   int i_layer, i_value;
   Layer *cur_layer, *next_layer;
   gsl_matrix_view cur_layer_matrix, next_layer_matrix;
   double **layer_values = calloc(network->num_layers, sizeof(double *));
   double **layer_activations = calloc(network->num_layers, sizeof(double *));
   double max_prob = 0;
-  unsigned int max_label;
+  unsigned char max_label;
 
   /* Initialize gradient matrices and delta vectors and layer values */ 
   for (i_layer = 0; i_layer < network->num_layers; i_layer++) {
@@ -290,7 +290,8 @@ void predict(Neural_Network *network, Image *image) {
       max_label = i_value;
     }
   }
-  printf("Prediction for image: %u (%.05f confidence)\n", max_label, max_prob);
+
+  return max_label;
 }
 
 void load_weights(Neural_Network *network, char *filename) {

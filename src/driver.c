@@ -10,6 +10,7 @@ int main(void) {
   Image *image;
   size_t layer_sizes[] = {300};
   int i;
+  int correct = 0;
 
   Neural_Network *network = malloc(sizeof(Neural_Network));
 
@@ -22,10 +23,12 @@ int main(void) {
 
   load_weights(network, "nn_300.weights");
 
-  predict(network, image);
+  for (i = 0; i < array->num_images; i++)
+    correct += predict(network, array->images[i]) == array->images[i]->label;
+  printf("%.03f%% accuracy\n", 100.0 * correct / array->num_images);
 
-  for (i = 0; i < 10; i++) {
-    train(network, array, 500);
+  for (i = 0; i < 2; i++) {
+    train(network, array, 1500);
     save_weights(network, "nn_300.weights");
   }
 }
