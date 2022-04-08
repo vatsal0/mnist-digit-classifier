@@ -26,4 +26,6 @@ void load_weights(Neural_Network *network, char *filename);
 
 void save_weights(Neural_Network *network, char *filename);
 
+void free_network(Neural_Network *network);
+
 #endif

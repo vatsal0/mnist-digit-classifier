@@ -291,6 +291,13 @@ unsigned char predict(Neural_Network *network, Image *image) {
     }
   }
 
+  for (i_layer = 0; i_layer < network->num_layers; i_layer++) {
+    free(layer_values[i_layer]);
+    free(layer_activations[i_layer]);
+  }
+  free(layer_values);
+  free(layer_activations);
+
   return max_label;
 }
 
@@ -343,4 +350,18 @@ void save_weights(Neural_Network *network, char *filename) {
   fwrite(buf, sizeof(*buf), buf_count, f);
   fclose(f);
   free(buf);
+}
+
+void free_network(Neural_Network *network) {
+  int i;
+
+  for (i = 0; i < network->num_layers; i++) {
+    free(network->layers[i]);
+    if (i != network->num_layers - 1)
+      gsl_matrix_free(network->weights[i]);
+  }
+
+  free(network->layers);
+  free(network->weights);
+  free(network);
 }
