@@ -58,7 +58,8 @@ void initialize_network(Neural_Network *network, size_t input_size, size_t outpu
   }
 }
 
-void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
+void train(Neural_Network *network, Image_Array *array, size_t num_batches) {
+  int batch_size = array->num_images / num_batches;
   int i_batch, i_example, i_layer, i_value;
   Layer *cur_layer, *next_layer;
   gsl_matrix_view cur_layer_matrix, next_layer_matrix;
@@ -159,7 +160,7 @@ void train(Neural_Network *network, Image_Array *array, size_t batch_size) {
     #endif
 
     cost /= batch_size;
-    printf("Cost for batch %lu: %.02f\n", i_batch / batch_size + 1, cost);
+    printf("Cost for batch %d: %.02f\n", i_batch / batch_size + 1, cost);
 
     /* Adjust weights through backpropagation */
     for (i_example = 0; i_example < batch_size; i_example++) {

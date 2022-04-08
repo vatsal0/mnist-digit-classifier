@@ -32,7 +32,7 @@ int main(void) {
   printf("%.03f%% accuracy\n", 100.0 * correct / test_array->num_images);
 
   for (i = 0; i < 2; i++) {
-    train(network, train_array, 1500);
+    train(network, train_array, 40);
     save_weights(network, "nn_300.weights");
   }
 
